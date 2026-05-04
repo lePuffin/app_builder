@@ -1,0 +1,6 @@
+services:
+  appbuilder:
+    image: appbuilder
+    build:
+      context: .
+      dockerfile: ./Dockerfile

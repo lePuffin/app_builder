@@ -1,0 +1,26 @@
+[project]
+name = "app_builder"
+version = "0.1.0"
+description = "AI development workspace"
+requires-python = ">=3.14"
+
+dependencies = [
+    "openai",
+    "httpx",
+    "pydantic",
+    "python-dotenv"
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "ipykernel"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
