@@ -1,10 +1,14 @@
-from tools.exec_tool import execute
+# src/main.py
 
-code = """
-print("Hello from AI sandbox")
-"""
+from orchestrator.core import Orchestrator
 
-output = execute(code)
+if __name__ == "__main__":
 
-print("OUTPUT:")
-print(output)
+    task = """
+    Write a Python script to compute Fibonacci, loop from 1 to 10 and print Fibonacci of each number"
+    """
+
+    orchestrator = Orchestrator()
+    result = orchestrator.run(task)
+
+    print("\nFINAL RESULT:\n", result)

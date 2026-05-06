@@ -1,4 +1,4 @@
-from workspace.docker_runner import run_code
+from sandbox.runner import run_code
 
 code = """
 print("Hello from sandbox")

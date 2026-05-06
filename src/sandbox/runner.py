@@ -1,5 +1,4 @@
 import docker
-import uuid
 import tarfile
 import io
 
@@ -50,12 +49,18 @@ def run_code(code: str):
         container.start()
 
         # 4. Wait
-        container.wait(timeout=5)
+        result = container.wait(timeout=5)
+        exit_code = result.get("StatusCode", 1)
 
-        # 5. Logs
-        result = container.logs(stdout=True, stderr=True)
+        # 5. Logs and exit code
+        logs = container.logs(stdout=True, stderr=True).decode()
 
-        return result.decode()
+        return {
+            "stdout": logs,
+            "stderr": "",   # docker junta logs, podemos separar depois
+            "exit_code": exit_code,
+            "success": exit_code == 0
+        }
 
     except Exception as e:
         try:
@@ -64,7 +69,12 @@ def run_code(code: str):
         except:
             pass
 
-        return str(e)
+        return {
+            "stdout": "",
+            "stderr": str(e),
+            "exit_code": 1,
+            "success": False
+        }
 
     finally:
         if container:
