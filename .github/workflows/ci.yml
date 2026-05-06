@@ -17,12 +17,22 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.14"
+          cache: "pip"
 
       - name: Install dependencies
         run: pip install docker pytest pytest-timeout
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build sandbox image
-        run: docker build -t sandbox-python ./src/sandbox
+      - name: Build sandbox image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/sandbox
+          tags: sandbox-python:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run tests
         run: python -m pytest -s --timeout=10
