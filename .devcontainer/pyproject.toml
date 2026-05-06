@@ -9,13 +9,14 @@ dependencies = [
     "httpx",
     "pydantic",
     "python-dotenv",
+    "pytest",
+    "pytest-timeout",
     "docker"
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff",
-    "pytest",
     "ipykernel"
 ]
 
