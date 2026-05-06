@@ -15,7 +15,7 @@
 
 	"mounts": [
 		"source=${localWorkspaceFolder},target=/workspace,type=bind",
-		"source=/home/thecpuffin/.ssh,target=/home/appuser/.ssh,type=bind,readonly"
+		"source=/home/thecpuffin/.ssh,target=/home/appuser/.ssh,type=bind,readonly",
 	],
 
 	"build": {
@@ -32,7 +32,12 @@
 				"terminal.integrated.defaultProfile.linux": "bash"
 			}
 		}
-	}
+	},
+
+	"runArgs": [
+    "--group-add=108",
+    "-v", "/var/run/docker.sock:/var/run/docker.sock"
+  ]
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
