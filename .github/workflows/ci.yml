@@ -19,7 +19,7 @@ jobs:
           python-version: "3.14"
 
       - name: Install dependencies
-        run: pip install pytest docker
+        run: pip install docker pytest pytest-timeout
 
       - name: Build sandbox image
         run: docker build -t sandbox-python ./src/sandbox
