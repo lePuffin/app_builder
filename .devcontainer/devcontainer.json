@@ -30,7 +30,13 @@
 		"vscode": {
 			"settings": {	
 				"terminal.integrated.defaultProfile.linux": "bash"
-			}
+			},
+			"extensions": [
+				"github.vscode-github-actions",
+				"mhutchie.git-graph",
+				"ms-azuretools.vscode-docker",
+				"ms-python.python"
+			]
 		}
 	},
 
