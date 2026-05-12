@@ -1,60 +1,191 @@
-# src/orchestrator/core.py
-
 from agents.planner import run as planner
-from agents.coder import run as coder
 from agents.evaluator import run as evaluator
-from sandbox.runner import run_code
+from agents.coding.dependency_resolver import run as dependency_resolver
+
+from agents.coding.debugger import run as debugger
+from agents.coding.test_writer import run as test_writer
+from agents.coding.refactorer import run as refactorer
+from agents.coding.project_generator import run as project_generator
+
+from config.runtime_profiles import (
+    RUNTIME_PROFILES
+)
+
+from sandbox.runner import run_project
+from workspace.manager import WorkspaceManager
+from tools.registry import ToolRegistry
+
 
 
 class Orchestrator:
 
+    def __init__(self):
+        self.workspace = WorkspaceManager()
+
     def run(self, task: str):
 
-        print("\n🧭 PLANNING PHASE")
+        # ==========================================
+        # WORKSPACE
+        # ==========================================
 
-        steps = planner(task)
+        workspace = self.workspace.create()
+        workspace_path = workspace["path"]
 
-        print("Plan:", steps)
+        print("📁 workspace:", workspace_path)
 
-        results = []
+        # ==========================================
+        # RUNTIME CONTEXT
+        # ==========================================
 
-        for i, step in enumerate(steps):
+        runtime = {
+            "environment": "docker",
+            "headless": True,
 
-            print(f"\n🔁 STEP {i+1}: {step}")
+            "supports_gui_code_generation": True,
+            "supports_gui_execution": False,
 
-            context = {
-                "task": step,
-                "error": None
-            }
+            "allowed_frameworks": [
+                "fastapi",
+                "textual",
+                "flet"
+            ],
 
-            success = False
+            "forbidden_frameworks": [
+                "tkinter"
+            ],
+            
+            "supports_stdin": False,
+            "supports_interactive_input": False,
+            "network_enabled": True,
+            "python_version": "3.14",
+            "os": "linux"
+        }
 
-            for attempt in range(3):
+        # ==========================================
+        # TOOLS (single source of truth)
+        # ==========================================
 
-                print("  🧑‍💻 coding...")
+        tools = ToolRegistry(
+            self.workspace,
+            workspace_path
+        ).get_tools()
 
-                code = coder(context)
+        # ==========================================
+        # PLANNING (reasoning only)
+        # ==========================================
 
-                print("  🐳 running...")
+        print("\n🧭 planning...")
+        plan =  planner({
+            "task": task,
+            "runtime": runtime
+        })
+        print(plan)
 
-                result = run_code(code)
+        # ==========================================
+        # PROJECT GENERATION (writes workspace)
+        # ==========================================
 
-                context["result"] = result
+        print("\n🏗 generating project...")
 
-                decision = evaluator(context)
+        project_generator({
+            "task": task,
+            "plan": plan,
+            "runtime": runtime,
+            "tools": tools
+        })
 
-                print("  🔍", decision["status"])
+        entrypoint = "main.py"
 
-                if decision["status"] == "success":
-                    success = True
-                    results.append(code)
-                    break
+        # ==========================================
+        # EXECUTION LOOP
+        # ==========================================
 
-                context["error"] = decision["error"]
+        success = False
 
-            if not success:
-                print("❌ step failed:", step)
-                return None
+        for attempt in range(5):
 
-        print("\n🎉 ALL STEPS COMPLETED")
-        return results
+            print(f"\n🔁 execution attempt {attempt+1}")
+
+            # ==========================================
+            # DEPENDENCIES (reasoning only)
+            # ==========================================
+
+            deps = dependency_resolver({
+                "files": self.workspace.read_project(workspace_path)
+            })
+
+            dependencies = deps["dependencies"]
+
+            print("📦 dependencies:", dependencies)
+
+            result = run_project(
+                workspace_path,
+                entrypoint,
+                dependencies
+            )
+
+            decision = evaluator({
+                "result": result
+            })
+
+            print(decision)
+
+            if decision["status"] == "success":
+                success = True
+                print("✅ execution succeeded")
+                break
+
+            # ======================================
+            # DEBUGGER (mutates workspace)
+            # ======================================
+
+            print("🐞 debugging...")
+
+            debugger({
+                "task": task,
+                "error": decision["error"],
+                "runtime": runtime,
+                "tools": tools
+            })
+
+        # ==========================================
+        # FAILURE
+        # ==========================================
+
+        if not success:
+            print("❌ max retries reached")
+            return None
+
+        # ==========================================
+        # TEST GENERATION (mutates workspace)
+        # ==========================================
+
+        print("\n🧪 generating tests...")
+
+        test_writer({
+            "task": task,
+            "runtime": runtime,
+            "tools": tools
+        })
+
+        # ==========================================
+        # REFACTORING (mutates workspace)
+        # ==========================================
+
+        print("\n♻️ refactoring project...")
+
+        refactorer({
+            "task": task,
+            "tools": tools
+        })
+
+        # ==========================================
+        # DONE
+        # ==========================================
+
+        print("\n🎉 project complete")
+
+        return {
+            "workspace": str(workspace_path),
+            "plan": plan
+        }

@@ -1,72 +1,37 @@
-from openai import OpenAI
-import os
-from dotenv import load_dotenv
-import json
-from schemas.evaluator import Evaluation
-
-load_dotenv(override=True)
-
-client = OpenAI(
-    base_url=os.getenv("GITHUB_URL"),
-    api_key=os.getenv("GITHUB_TOKEN")
-)
-
-SYSTEM = """
-You are an evaluation agent.
-
-Your job:
-- Decide if code execution was successful or not
-- Only respond in JSON
-
-Return format:
-{
-  "status": "success" or "retry",
-  "error": "error message or null"
-}
-
-Rules:
-- If exit_code == 0 and no obvious error → success
-- Otherwise → retry
-"""
-
-
 def run(context: dict):
-    result = context.get("result") or {}
 
-    prompt = f"""
-                stdout:
-                {result.get('stdout', '')}
+    result = context["result"]
 
-                stderr:
-                {result.get('stderr', '')}
+    stdout = result.get("stdout", "")
+    stderr = result.get("stderr", "")
+    exit_code = result.get("exit_code", 1)
 
-                exit_code:
-                {result.get('exit_code', 1)}
-                """
+    print("\n📤 STDOUT:")
+    print(stdout)
 
-    response = client.chat.completions.create(
-        model=os.getenv("GITHUB_MODEL"),
-        messages=[
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.0,
-        response_format={"type": "json_object"},
-    )
+    print("\n⚠️ STDERR:")
+    print(stderr)
 
-    content = response.choices[0].message.content
+    print("\n🚪 EXIT CODE:", exit_code)
 
-    try:
-        data = json.loads(content)
+    # ==========================================
+    # SUCCESS CONDITIONS
+    # ==========================================
 
-        # 🔥 schema validation
-        validated = Evaluation(**data)
+    if exit_code == 0 and not stderr.strip():
 
-        return validated.model_dump()
-
-    except Exception as e:
-        # fallback seguro (nunca crasha o system)
         return {
-            "status": "retry",
-            "error": str(e)
+            "status": "success",
+            "error": None
         }
+
+    # ==========================================
+    # FAILURE
+    # ==========================================
+
+    error = stderr.strip() or stdout.strip() or "Unknown execution error"
+
+    return {
+        "status": "retry",
+        "error": error
+    }

@@ -1,73 +1,144 @@
 import docker
 import tarfile
 import io
+from pathlib import Path
 
 client = docker.from_env()
 
 
-def _make_tar(code: str, filename="main.py"):
-    """
-    Create a tar archive in memory containing the code as a file.
-    """
+def _workspace_to_tar(workspace_path):
+
     data = io.BytesIO()
 
     with tarfile.open(fileobj=data, mode="w") as tar:
-        info = tarfile.TarInfo(name=filename)
-        encoded = code.encode("utf-8")
-        info.size = len(encoded)
-        tar.addfile(info, io.BytesIO(encoded))
+
+        for file_path in workspace_path.rglob("*"):
+
+            if file_path.is_file():
+
+                relative = file_path.relative_to(workspace_path)
+
+                tar.add(file_path, arcname=str(relative))
 
     data.seek(0)
+
     return data
 
 
-def run_code(code: str):
+def run_project(
+    workspace_path,
+    entrypoint="main.py",
+    dependencies=None
+):
+    
+    dependencies = dependencies or []
+
     container = None
 
     try:
-        # 1. Create container
+
+        # ==========================================
+        # CREATE CONTAINER
+        # ==========================================
+
         container = client.containers.create(
             image="sandbox-python",
-            command="python3 /app/main.py",
+            command="tail -f /dev/null",
             working_dir="/app",
-            network_disabled=True,
-            mem_limit="128m",
-            nano_cpus=500_000_000,
-            pids_limit=64,
+            network_disabled=False,
+            mem_limit="256m",
+            nano_cpus=1_000_000_000,
+            pids_limit=128,
             detach=True
         )
 
-        # 2. Upload code as a tar archive
-        tar_data = _make_tar(code)
+        # ==========================================
+        # UPLOAD PROJECT
+        # ==========================================
 
-        container.put_archive(
-            path="/app",
-            data=tar_data
+        tar_data = _workspace_to_tar(
+            workspace_path
         )
 
-        # 3. Start
+        container.put_archive(
+            "/app",
+            tar_data
+        )
+
+        # ==========================================
+        # START CONTAINER
+        # ==========================================
+
         container.start()
 
-        # 4. Wait
-        result = container.wait(timeout=5)
-        exit_code = result.get("StatusCode", 1)
+        container.reload()
 
-        # 5. Logs and exit code
-        logs = container.logs(stdout=True, stderr=True).decode()
+        print("container status:", container.status)
+
+        # ==========================================
+        # INSTALL DEPENDENCIES
+        # ==========================================
+
+        if dependencies:
+
+            deps = " ".join(dependencies)
+
+            install = container.exec_run(
+                f"pip install --no-cache-dir {deps}",
+                demux=True
+            )
+
+            stdout = (
+                install.output[0].decode()
+                if install.output[0]
+                else ""
+            )
+
+            stderr = (
+                install.output[1].decode()
+                if install.output[1]
+                else ""
+            )
+
+            if install.exit_code != 0:
+
+                return {
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "exit_code": install.exit_code,
+                    "success": False
+                }
+            
+        # ==========================================
+        # EXECUTE PROJECT
+        # ==========================================
+
+        execution = container.exec_run(
+            f"python3 /app/{entrypoint}",
+            demux=True
+        )
+
+        stdout = (
+            execution.output[0].decode()
+            if execution.output[0]
+            else ""
+        )
+
+        stderr = (
+            execution.output[1].decode()
+            if execution.output[1]
+            else ""
+        )
 
         return {
-            "stdout": logs,
-            "stderr": "",   # docker junta logs, podemos separar depois
-            "exit_code": exit_code,
-            "success": exit_code == 0
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": execution.exit_code,
+            "success": execution.exit_code == 0
         }
 
+
     except Exception as e:
-        try:
-            if container:
-                container.kill()
-        except:
-            pass
 
         return {
             "stdout": "",
@@ -77,6 +148,7 @@ def run_code(code: str):
         }
 
     finally:
+
         if container:
             try:
                 container.remove(force=True)

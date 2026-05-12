@@ -1,14 +1,14 @@
-# src/main.py
-
 from orchestrator.core import Orchestrator
 
-if __name__ == "__main__":
+task = """
+Create a small Python todo app with a simple UI. The app should allow users to add, view, and delete tasks. Use the following files for the project:
+- main.py
+- storage.py
+- create requirements.md and include dependencies
+"""
 
-    task = """
-    Write a Python script to compute Fibonacci, loop from 1 to 10 and print Fibonacci of each number"
-    """
+orchestrator = Orchestrator()
 
-    orchestrator = Orchestrator()
-    result = orchestrator.run(task)
+result = orchestrator.run(task)
 
-    print("\nFINAL RESULT:\n", result)
+print(result)
